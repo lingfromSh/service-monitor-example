@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name:  demo-server
+  labels:
+    tier: backend
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      tier: backend
+  template:
+    metadata:
+      labels:
+        tier:  backend
+    spec:
+      containers:
+        - name: demo-server
+          image:  demo-server
+          ports:
+          - containerPort:  8080
+            name:  http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-server
+spec:
+  selector:
+    tier: backend
+  ports:
+  - name:  http
+    port:  80
+    targetPort:  8080
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: demo-server
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`demo-server.local`)
+      services:
+        - kind: Service
+          name: demo-server
+          port: http
+          # 负载均衡策略
+          strategy: RoundRobin
+
+---
+# Latency Check
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: latency-check
+spec:
+  circuitBreaker:
+    expression: LatencyAtQuantileMS(50.0) > 100
